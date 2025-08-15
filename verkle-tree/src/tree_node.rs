@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use ark_bls12_381::Fr;
 use serde::{Deserialize, Serialize};
 use solana_program::{hash::hashv, pubkey::Pubkey};
 use solana_sdk::hash::Hash;
@@ -12,7 +13,7 @@ pub const MINT_DECIMALS: u32 = 9;
 pub struct TreeNode {
     /// Pubkey of the claimant; will be responsible for signing the claim
     pub claimant: Pubkey,
-    /// Claimant's proof of inclusion in the Merkle Tree
+    /// Claimant's proof of inclusion in the Verkle Tree
     pub proof: Option<Vec<[u8; 32]>>,
     /// Total amount unlocked under staker allocation
     pub total_unlocked_staker: u64,
@@ -35,6 +36,10 @@ impl TreeNode {
             &self.amount_unlocked().to_le_bytes(),
             &self.amount_locked().to_le_bytes(),
         ])
+    }
+
+    pub fn hash_to_field_element(&self)-> Fr{
+        
     }
 
     /// Return total amount of locked and unlocked amount for this claimant
