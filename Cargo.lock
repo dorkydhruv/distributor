@@ -5080,6 +5080,7 @@ dependencies = [
  "csv",
  "fast-math",
  "kzg-commitment",
+ "num-bigint 0.4.6",
  "serde",
  "serde_json",
  "solana-program 1.16.16",

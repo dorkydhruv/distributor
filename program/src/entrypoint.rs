@@ -1,11 +1,6 @@
 use pinocchio::{
-    account_info::AccountInfo,
-    no_allocator,
-    nostd_panic_handler,
-    program_entrypoint,
-    program_error::ProgramError,
-    pubkey::Pubkey,
-    ProgramResult,
+    account_info::AccountInfo, no_allocator, nostd_panic_handler, program_entrypoint,
+    program_error::ProgramError, pubkey::Pubkey, ProgramResult,
 };
 
 // This is the entrypoint for the program.
@@ -19,7 +14,7 @@ nostd_panic_handler!();
 fn process_instruction(
     _program_id: &Pubkey,
     accounts: &[AccountInfo],
-    instruction_data: &[u8]
+    instruction_data: &[u8],
 ) -> ProgramResult {
     Ok(())
 }

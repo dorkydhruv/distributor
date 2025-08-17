@@ -18,3 +18,4 @@ ark-bls12-381 = { workspace = true }
 ark-poly = { workspace = true }
 ark-ec = { workspace = true }
 kzg-commitment = { workspace = true }
+num-bigint = { workspace = true }

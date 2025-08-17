@@ -1,9 +1,9 @@
-use std::str::FromStr;
-
 use ark_bls12_381::Fr;
+use ark_ff::PrimeField;
 use serde::{Deserialize, Serialize};
 use solana_program::{hash::hashv, pubkey::Pubkey};
 use solana_sdk::hash::Hash;
+use std::str::FromStr;
 
 use crate::csv_entry::{AirdropCategory, CsvEntry};
 pub const MINT_DECIMALS: u32 = 9;
@@ -38,8 +38,8 @@ impl TreeNode {
         ])
     }
 
-    pub fn hash_to_field_element(&self)-> Fr{
-        
+    pub fn hash_to_field_element(&self) -> Fr {
+        Fr::from_le_bytes_mod_order(self.hash().as_ref())
     }
 
     /// Return total amount of locked and unlocked amount for this claimant
