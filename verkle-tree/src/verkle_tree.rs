@@ -98,7 +98,7 @@ impl VerkleTree {
      fn map_commitment_to_field(g1_point: &G1Affine) -> F {
         let fq_value = g1_point.x().expect("its the x value") + g1_point.y().expect("its the y value");
         let fq_bigint: BigUint = fq_value.into_bigint().into();
-        F::from_le_bytes_mod_order(&fq_bigint.to_bytes_le())
+        Fr::from_le_bytes_mod_order(&fq_bigint.to_bytes_le())
     }
 
 }
