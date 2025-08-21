@@ -1,12 +1,17 @@
-use ark_bls12_381::{Fr, G1Affine};
+use std::{ collections::HashSet, vec };
+
+use ark_bls12_381::{ Fr as F, G1Affine };
+use ark_ec::AffineRepr;
 use ark_poly::univariate::DensePolynomial;
 use kzg_commitment::KZGCommitment;
-use num_bigint::BigUint;
 
 use ark_ff::PrimeField;
 use kzg_commitment::ProofError;
+use num_bigint::BigUint;
 
-use crate::{error::VerkleTreeError, VERKLE_TREE_WIDTH};
+use rayon::prelude::*;
+
+use crate::VERKLE_TREE_WIDTH;
 
 pub struct VerkleTree {
     nodes: Vec<VerkleNode>,
@@ -47,7 +52,6 @@ impl VerkleTree {
         }
 
         let leaf_nodes = Self::create_leaf_nodes(&kzg, items);
-
     }
     fn create_leaf_nodes(kzg: &KZGCommitment, datas: &[Fr]) -> Vec<VerkleNode> {
         datas
@@ -63,10 +67,7 @@ impl VerkleTree {
             .collect()
     }
 
-    fn build_tree_recursively(
-        kzg: &KZGCommitment,
-        nodes: &[VerkleNode],
-    ) -> VerkleNode {
+    fn build_tree_recursively(kzg: &KZGCommitment, nodes: &[VerkleNode]) -> VerkleNode {
         if nodes.len() == 1 {
             return nodes[0].clone();
         }
@@ -74,12 +75,9 @@ impl VerkleTree {
         Self::build_tree_recursively(kzg, &next_level)
     }
 
-    fn build_from_nodes(
-        kzg: &KZGCommitment,
-        nodes: &[VerkleNode],
-    ) -> Vec<VerkleNode> {
+    fn build_from_nodes(kzg: &KZGCommitment, nodes: &[VerkleNode]) -> Vec<VerkleNode> {
         nodes
-        .chunks(VERKLE_TREE_WIDTH)
+            .chunks(VERKLE_TREE_WIDTH)
             .map(|chunk| {
                 let vector_commitment_mapping = chunk
                     .iter()
@@ -95,10 +93,10 @@ impl VerkleTree {
             .collect()
     }
 
-     fn map_commitment_to_field(g1_point: &G1Affine) -> F {
-        let fq_value = g1_point.x().expect("its the x value") + g1_point.y().expect("its the y value");
+    fn map_commitment_to_field(g1_point: &G1Affine) -> F {
+        let fq_value =
+            g1_point.x().expect("its the x value") + g1_point.y().expect("its the y value");
         let fq_bigint: BigUint = fq_value.into_bigint().into();
         Fr::from_le_bytes_mod_order(&fq_bigint.to_bytes_le())
     }
-
 }

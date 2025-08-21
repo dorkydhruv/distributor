@@ -19,3 +19,4 @@ ark-poly = { workspace = true }
 ark-ec = { workspace = true }
 kzg-commitment = { workspace = true }
 num-bigint = { workspace = true }
+rayon = { workspace = true }
