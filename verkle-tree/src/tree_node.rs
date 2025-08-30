@@ -1,18 +1,28 @@
-use ark_bls12_381::Fr;
+use ark_bn254::Fr;
 use ark_ff::PrimeField;
 use serde::{Deserialize, Serialize};
-use solana_program::{hash::hashv, pubkey::Pubkey};
-use solana_sdk::hash::Hash;
 use std::str::FromStr;
+use blake3::{hash, Hash, Hasher};
 
 use crate::csv_entry::{AirdropCategory, CsvEntry};
 pub const MINT_DECIMALS: u32 = 9;
+
+macro_rules! hashv {
+    ($($expr:expr),*) => {{
+        
+        let mut hash = Hasher::new();
+        $(
+            hash.update($expr);
+        )*
+        hash.finalize()
+    }};
+}
 
 /// Represents the claim information for an account.
 #[derive(Debug, Clone, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct TreeNode {
     /// Pubkey of the claimant; will be responsible for signing the claim
-    pub claimant: Pubkey,
+    pub claimant: [u8;32],
     /// Claimant's proof of inclusion in the Verkle Tree
     pub proof: Option<Vec<[u8; 32]>>,
     /// Total amount unlocked under staker allocation
@@ -31,16 +41,12 @@ pub struct TreeNode {
 
 impl TreeNode {
     pub fn hash(&self) -> Hash {
-        hashv(&[
-            &self.claimant.to_bytes(),
-            &self.amount_unlocked().to_le_bytes(),
-            &self.amount_locked().to_le_bytes(),
-        ])
+        hashv!(self.claimant.as_ref(),&self.total_amount().to_le_bytes(), &self.total_locked_staker.to_be_bytes())
     }
 
-    pub fn hash_to_field_element(&self) -> Fr {
-        Fr::from_le_bytes_mod_order(self.hash().as_ref())
-    }
+    // pub fn hash_to_field_element(&self) -> Fr {
+    //     Fr::from_le_bytes_mod_order(self.hash().as_bytes())
+    // }
 
     /// Return total amount of locked and unlocked amount for this claimant
     pub fn total_amount(&self) -> u64 {
@@ -76,7 +82,7 @@ fn ui_amount_to_token_amount(amount: u64) -> u64 {
 impl From<CsvEntry> for TreeNode {
     fn from(entry: CsvEntry) -> Self {
         let mut node = Self {
-            claimant: Pubkey::from_str(entry.pubkey.as_str()).unwrap(),
+            claimant: [0;32],
             proof: None,
             total_unlocked_staker: 0,
             total_locked_staker: 0,
@@ -114,7 +120,7 @@ mod tests {
     #[test]
     fn test_serialize_tree_node() {
         let tree_node = TreeNode {
-            claimant: Pubkey::default(),
+            claimant: [0;32],
             proof: None,
             total_unlocked_staker: 0,
             total_locked_staker: 0,
