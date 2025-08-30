@@ -2200,6 +2200,7 @@ dependencies = [
  "pinocchio-log",
  "pinocchio-pubkey",
  "pinocchio-system",
+ "pinocchio-token",
  "solana-sdk",
  "spl-token",
 ]
@@ -2235,6 +2236,15 @@ dependencies = [
 [[package]]
 name = "pinocchio-system"
 version = "0.3.0"
+source = "git+https://github.com/anza-xyz/pinocchio.git#dd52b4a0e8b86825304d28567f687b76100f6a8e"
+dependencies = [
+ "pinocchio",
+ "pinocchio-pubkey",
+]
+
+[[package]]
+name = "pinocchio-token"
+version = "0.4.0"
 source = "git+https://github.com/anza-xyz/pinocchio.git#dd52b4a0e8b86825304d28567f687b76100f6a8e"
 dependencies = [
  "pinocchio",

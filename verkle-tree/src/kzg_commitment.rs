@@ -1,6 +1,6 @@
 use ark_bn254::{Bn254, Fr as F, G1Affine, G2Affine};
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
-use ark_ff::{ Field, UniformRand, Zero};
+use ark_ff::{Field, UniformRand, Zero};
 use ark_poly::{
     univariate::{DenseOrSparsePolynomial, DensePolynomial},
     DenseUVPolynomial,

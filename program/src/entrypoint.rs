@@ -3,6 +3,8 @@ use pinocchio::{
     program_error::ProgramError, pubkey::Pubkey, ProgramResult,
 };
 
+use crate::instruction::NewDistributor;
+
 // This is the entrypoint for the program.
 program_entrypoint!(process_instruction);
 //Do not allocate memory.
@@ -16,5 +18,10 @@ fn process_instruction(
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
-    Ok(())
+    match instruction_data.split_first() {
+        Some((NewDistributor::DISC, instruction_data)) => {
+            NewDistributor::try_from((accounts, instruction_data))?.process()
+        }
+        _ => Err(ProgramError::InvalidInstructionData),
+    }
 }

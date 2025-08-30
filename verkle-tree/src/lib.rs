@@ -1,5 +1,3 @@
-
-
 mod csv_entry;
 mod error;
 pub mod kzg_commitment;
@@ -9,4 +7,3 @@ pub mod verkle_tree;
 // Chosen branching factor for Verkle-style KZG tree.
 // Keep small to limit on-chain verification cost; 32 yields depth ~= log_32(n).
 pub const VERKLE_TREE_WIDTH: usize = 32;
-
