@@ -2191,7 +2191,7 @@ version = "0.9.1"
 source = "git+https://github.com/anza-xyz/pinocchio.git#dd52b4a0e8b86825304d28567f687b76100f6a8e"
 
 [[package]]
-name = "pinocchio-fundraiser"
+name = "pinocchio-distributor"
 version = "0.1.0"
 dependencies = [
  "mollusk-svm",
@@ -2203,6 +2203,7 @@ dependencies = [
  "pinocchio-token",
  "solana-sdk",
  "spl-token",
+ "verkle-tree",
 ]
 
 [[package]]

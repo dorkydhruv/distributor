@@ -6,6 +6,6 @@ extern crate std;
 #[cfg(not(feature = "no-entrypoint"))]
 mod entrypoint;
 mod error;
-mod instruction;
+pub mod instruction;
 pub mod state;
-pinocchio_pubkey::declare_id!("AvvaLMBjGBWNamh1qV72gzG412kiZWVFHu2PMi36Bg3G");
+pinocchio_pubkey::declare_id!("GYbv43vv7oxEasGkedttXrWGf5JANfY6rpAMUBpKukUH");

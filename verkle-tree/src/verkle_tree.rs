@@ -10,7 +10,7 @@ use blake3::Hasher;
 
 use crate::VERKLE_TREE_WIDTH;
 
-/// KZG-based multi-ary Verkle-style commitment tree (off-chain builder only for now).
+/// KZG-based multi-ary Verkle-style commitment tree
 /// Leaves: raw field elements. Leaf layer groups up to WIDTH leaves into one polynomial.
 /// Internal nodes: polynomial over hash(field(child_commitment))).
 pub struct VerkleTree {
@@ -51,34 +51,27 @@ pub enum VerkleTreeError {
 }
 
 impl VerkleTree {
-    /// Build from TreeNode objects (main constructor for distributor use case)
-    pub fn from_tree_nodes(nodes: &[TreeNode]) -> Result<Self, VerkleTreeError> {
-        if nodes.is_empty() {
+
+        pub fn new(nodes: &[TreeNode]) -> Result<Self, VerkleTreeError> {
+         if nodes.is_empty() {
             return Err(VerkleTreeError::EmptyInput);
         }
 
         // Convert TreeNodes to field elements using the same hash as Merkle
-        // This ensures consistency between Merkle and Verkle representations
         let leaves: Vec<F> = nodes
             .iter()
             .map(|node| {
                 // Use the same hash method as Merkle: node.hash() -> bytes
                 let hash = node.hash();
-                let hash_bytes = hash.as_bytes(); // blake3::Hash has as_bytes() method
+                let hash_bytes = hash.as_bytes();
                 hash_to_field(b"verkle:leaf", hash_bytes)
             })
             .collect();
-
-        Self::new(&leaves)
-    }
-
-    /// Build from raw field elements (for testing or advanced use)
-    pub fn new(leaves: &[F]) -> Result<Self, VerkleTreeError> {
         if leaves.is_empty() {
             return Err(VerkleTreeError::EmptyInput);
         }
         let kzg = KZGCommitment::new(VERKLE_TREE_WIDTH);
-        // Build leaf nodes
+
         let mut current: Vec<VerkleNode> = leaves
             .chunks(VERKLE_TREE_WIDTH)
             .map(|chunk| {
@@ -94,7 +87,7 @@ impl VerkleTree {
             })
             .collect();
         while current.len() > 1 {
-            current = Self::parent_layer(&kzg, current);
+            current = Self::create_parent_layers(&kzg, current);
         }
         let root = current.pop().unwrap();
         Ok(Self {
@@ -104,7 +97,7 @@ impl VerkleTree {
         })
     }
 
-    fn parent_layer(kzg: &KZGCommitment, layer: Vec<VerkleNode>) -> Vec<VerkleNode> {
+    fn create_parent_layers(kzg: &KZGCommitment, layer: Vec<VerkleNode>) -> Vec<VerkleNode> {
         layer
             .chunks(VERKLE_TREE_WIDTH)
             .map(|group| {
@@ -129,7 +122,6 @@ impl VerkleTree {
         self.root.commitment
     }
 
-    /// Get the root commitment as bytes for on-chain storage (replaces merkle_root)
     pub fn root_bytes(&self) -> [u8; 48] {
         let mut bytes = [0u8; 48];
         self.root
@@ -309,21 +301,6 @@ mod tests {
     use crate::csv_entry::{AirdropCategory, CsvEntry};
 
     #[test]
-    fn build_and_prove_small() {
-        // 100 random pseudo-leaves (deterministic for test)
-        let leaves: Vec<F> = (0u64..100)
-            .map(|i| hash_to_field(b"verkle:leaf", &i.to_le_bytes()))
-            .collect();
-        let tree = VerkleTree::new(&leaves).unwrap();
-        for idx in [0usize, 1, 31, 32, 63, 64, 99] {
-            // sample indices
-            let leaf_val = leaves[idx];
-            let proof = tree.generate_proof(idx, leaf_val).unwrap();
-            assert!(verify_proof(&tree.root_commitment(), &proof));
-        }
-    }
-
-    #[test]
     fn test_tree_node_integration() {
         // Create sample TreeNodes
         let mut nodes = Vec::new();
@@ -344,7 +321,7 @@ mod tests {
         }
 
         // Build tree from TreeNodes
-        let tree = VerkleTree::from_tree_nodes(&nodes).unwrap();
+        let tree = VerkleTree::new(&nodes).unwrap();
         let root_bytes = tree.root_bytes();
 
         // Test proofs for various indices
@@ -379,7 +356,7 @@ mod tests {
             })
             .collect();
 
-        let tree = VerkleTree::from_tree_nodes(&nodes).unwrap();
+        let tree = VerkleTree::new(&nodes).unwrap();
         let root_bytes = tree.root_bytes();
 
         // Test edge cases: first chunk, second chunk, last node
@@ -399,7 +376,7 @@ mod tests {
     #[test]
     fn test_empty_input() {
         let empty_nodes: Vec<TreeNode> = vec![];
-        let result = VerkleTree::from_tree_nodes(&empty_nodes);
+        let result = VerkleTree::new(&empty_nodes);
         assert!(matches!(result, Err(VerkleTreeError::EmptyInput)));
     }
 
@@ -418,7 +395,7 @@ mod tests {
             })
             .collect();
 
-        let tree = VerkleTree::from_tree_nodes(&nodes).unwrap();
+        let tree = VerkleTree::new(&nodes).unwrap();
         let hash = nodes[0].hash();
         let hash_bytes = hash.as_bytes();
         let leaf_value = hash_to_field(b"verkle:leaf", hash_bytes);
@@ -443,7 +420,7 @@ mod tests {
             })
             .collect();
 
-        let tree = VerkleTree::from_tree_nodes(&nodes).unwrap();
+        let tree = VerkleTree::new(&nodes).unwrap();
         let root_bytes = tree.root_bytes();
 
         // Should be 48 bytes (compressed G1 point)

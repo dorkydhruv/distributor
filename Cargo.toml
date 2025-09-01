@@ -31,3 +31,4 @@ num-bigint = "0.4.6"
 rayon = "1.10.0"
 ark-bn254 = "0.5.0"
 ark-ff = "0.5.0"
+verkle-tree = { path = "verkle-tree" }
