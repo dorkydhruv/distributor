@@ -16,15 +16,12 @@ pub struct NewDistributorAccounts<'a> {
     pub mint: &'a AccountInfo,
     pub token_vault: &'a AccountInfo,
     pub admin: &'a AccountInfo,
-    pub _system_program: &'a AccountInfo,
-    pub _associated_token_program: &'a AccountInfo,
-    pub _token_program: &'a AccountInfo,
 }
 impl<'a> TryFrom<&'a [AccountInfo]> for NewDistributorAccounts<'a> {
     type Error = ProgramError;
 
     fn try_from(value: &'a [AccountInfo]) -> Result<Self, Self::Error> {
-        let [distributor, clawback_receiver, mint, token_vault, admin, system_program, associated_token_program, token_program, ..] =
+        let [distributor, clawback_receiver, mint, token_vault, admin, ..] =
             value
         else {
             return Err(ProgramError::NotEnoughAccountKeys);
@@ -61,10 +58,7 @@ impl<'a> TryFrom<&'a [AccountInfo]> for NewDistributorAccounts<'a> {
             clawback_receiver,
             mint,
             token_vault,
-            admin,
-            _system_program: system_program,
-            _associated_token_program: associated_token_program,
-            _token_program: token_program,
+            admin
         })
     }
 }

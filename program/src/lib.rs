@@ -8,4 +8,5 @@ mod entrypoint;
 mod error;
 pub mod instruction;
 pub mod state;
+mod utils;
 pinocchio_pubkey::declare_id!("GYbv43vv7oxEasGkedttXrWGf5JANfY6rpAMUBpKukUH");

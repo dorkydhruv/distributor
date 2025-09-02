@@ -3,7 +3,7 @@ use pinocchio::pubkey::Pubkey;
 #[repr(C)]
 pub struct VerkleDistributor {
     /// Version of the airdrop
-    pub version: u64,
+    pub version: [u8;8],
     /// The 512-bit verkle root.
     pub root: [u8; 64],
     /// [Mint] of the token to be distributed.
@@ -11,25 +11,25 @@ pub struct VerkleDistributor {
     /// Token Address of the vault
     pub token_vault: Pubkey,
     /// Maximum number of tokens that can ever be claimed from this [VerkleDistributor].
-    pub max_total_claim: u64,
+    pub max_total_claim: [u8;8],
     /// Maximum number of nodes in [VerkleDistributor].
-    pub max_num_nodes: u64,
+    pub max_num_nodes: [u8;8],
     /// Total amount of tokens that have been claimed.
-    pub total_amount_claimed: u64,
+    pub total_amount_claimed: [u8;8],
     /// Number of nodes that have been claimed.
-    pub num_nodes_claimed: u64,
+    pub num_nodes_claimed: [u8;8],
     /// Lockup time start (Unix Timestamp)
-    pub start_ts: i64,
+    pub start_ts: [u8;8],
     /// Lockup time end (Unix Timestamp)
-    pub end_ts: i64,
+    pub end_ts: [u8;8],
     /// Clawback start (Unix Timestamp)
-    pub clawback_start_ts: i64,
+    pub clawback_start_ts: [u8;8],
     /// Clawback receiver
     pub clawback_receiver: Pubkey,
     /// Admin wallet
     pub admin: Pubkey,
     /// Whether or not the distributor has been clawed back
-    pub clawed_back: bool,
+    pub clawed_back: u8,
     /// Bump seed.
     pub bump: u8,
 }
@@ -53,20 +53,20 @@ impl VerkleDistributor {
         admin: Pubkey,
         bump: u8,
     ) {
-        self.version = version;
+        self.version = version.to_be_bytes();
         self.root.copy_from_slice(&root);
         self.mint = mint;
         self.token_vault = token_vault;
-        self.max_total_claim = max_total_claim;
-        self.max_num_nodes = max_num_nodes;
-        self.start_ts = start_ts;
-        self.end_ts = end_ts;
-        self.clawback_start_ts = clawback_start_ts;
+        self.max_total_claim = max_total_claim.to_be_bytes();
+        self.max_num_nodes = max_num_nodes.to_be_bytes();
+        self.start_ts = start_ts.to_be_bytes();
+        self.end_ts = end_ts.to_be_bytes();
+        self.clawback_start_ts = clawback_start_ts.to_be_bytes();
         self.clawback_receiver = clawback_receiver;
         self.admin = admin;
-        self.clawed_back = false;
-        self.total_amount_claimed = 0;
-        self.num_nodes_claimed = 0;
+        self.clawed_back = 0;
+        self.total_amount_claimed = [0; 8];
+        self.num_nodes_claimed = [0; 8];
         self.bump = bump;
     }
 

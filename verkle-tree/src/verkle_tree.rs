@@ -51,9 +51,8 @@ pub enum VerkleTreeError {
 }
 
 impl VerkleTree {
-
-        pub fn new(nodes: &[TreeNode]) -> Result<Self, VerkleTreeError> {
-         if nodes.is_empty() {
+    pub fn new(nodes: &[TreeNode]) -> Result<Self, VerkleTreeError> {
+        if nodes.is_empty() {
             return Err(VerkleTreeError::EmptyInput);
         }
 
