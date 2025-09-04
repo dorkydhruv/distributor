@@ -3,7 +3,7 @@ use pinocchio::{
     program_error::ProgramError, pubkey::Pubkey, ProgramResult,
 };
 
-use crate::instruction::NewDistributor;
+use crate::instruction::{NewClaim, NewDistributor};
 
 // This is the entrypoint for the program.
 program_entrypoint!(process_instruction);
@@ -21,6 +21,9 @@ fn process_instruction(
     match instruction_data.split_first() {
         Some((NewDistributor::DISC, instruction_data)) => {
             NewDistributor::try_from((accounts, instruction_data))?.process()
+        }
+        Some((NewClaim::DISC, instruction_data)) => {
+            NewClaim::try_from((accounts, instruction_data))?.process()
         }
         _ => Err(ProgramError::InvalidInstructionData),
     }

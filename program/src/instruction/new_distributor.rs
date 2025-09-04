@@ -21,9 +21,7 @@ impl<'a> TryFrom<&'a [AccountInfo]> for NewDistributorAccounts<'a> {
     type Error = ProgramError;
 
     fn try_from(value: &'a [AccountInfo]) -> Result<Self, Self::Error> {
-        let [distributor, clawback_receiver, mint, token_vault, admin, ..] =
-            value
-        else {
+        let [distributor, clawback_receiver, mint, token_vault, admin, ..] = value else {
             return Err(ProgramError::NotEnoughAccountKeys);
         };
 
@@ -58,7 +56,7 @@ impl<'a> TryFrom<&'a [AccountInfo]> for NewDistributorAccounts<'a> {
             clawback_receiver,
             mint,
             token_vault,
-            admin
+            admin,
         })
     }
 }

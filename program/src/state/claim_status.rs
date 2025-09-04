@@ -13,5 +13,11 @@ pub struct ClaimStatus {
 }
 
 impl ClaimStatus {
+    pub const DISCRIMINATOR: &[u8] = b"ClaimStatus";
     pub const LEN: usize = core::mem::size_of::<ClaimStatus>();
+
+    pub unsafe fn unpack(data: &mut [u8]) -> &mut Self {
+        assert!(data.len() >= Self::LEN);
+        unsafe { &mut *(data.as_mut_ptr() as *mut Self) }
+    }
 }

@@ -3,7 +3,7 @@ use pinocchio::pubkey::Pubkey;
 #[repr(C)]
 pub struct VerkleDistributor {
     /// Version of the airdrop
-    pub version: [u8;8],
+    pub version: [u8; 8],
     /// The 512-bit verkle root.
     pub root: [u8; 64],
     /// [Mint] of the token to be distributed.
@@ -11,19 +11,19 @@ pub struct VerkleDistributor {
     /// Token Address of the vault
     pub token_vault: Pubkey,
     /// Maximum number of tokens that can ever be claimed from this [VerkleDistributor].
-    pub max_total_claim: [u8;8],
+    pub max_total_claim: [u8; 8],
     /// Maximum number of nodes in [VerkleDistributor].
-    pub max_num_nodes: [u8;8],
+    pub max_num_nodes: [u8; 8],
     /// Total amount of tokens that have been claimed.
-    pub total_amount_claimed: [u8;8],
+    pub total_amount_claimed: [u8; 8],
     /// Number of nodes that have been claimed.
-    pub num_nodes_claimed: [u8;8],
+    pub num_nodes_claimed: [u8; 8],
     /// Lockup time start (Unix Timestamp)
-    pub start_ts: [u8;8],
+    pub start_ts: [u8; 8],
     /// Lockup time end (Unix Timestamp)
-    pub end_ts: [u8;8],
+    pub end_ts: [u8; 8],
     /// Clawback start (Unix Timestamp)
-    pub clawback_start_ts: [u8;8],
+    pub clawback_start_ts: [u8; 8],
     /// Clawback receiver
     pub clawback_receiver: Pubkey,
     /// Admin wallet
