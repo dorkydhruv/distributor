@@ -5,7 +5,7 @@ pub struct VerkleDistributor {
     /// Version of the airdrop
     pub version: [u8; 8],
     /// The 512-bit verkle root.
-    pub root: [u8; 64],
+    pub root: [u8; 48],
     /// [Mint] of the token to be distributed.
     pub mint: Pubkey,
     /// Token Address of the vault
@@ -41,7 +41,7 @@ impl VerkleDistributor {
     pub fn initialize(
         &mut self,
         version: u64,
-        root: [u8; 64],
+        root: [u8; 48],
         mint: Pubkey,
         token_vault: Pubkey,
         max_total_claim: u64,

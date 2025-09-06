@@ -209,17 +209,7 @@ fn hash_to_field(domain: &[u8], data: &[u8]) -> F {
     h1.update(domain);
     h1.update(data);
     let r1 = h1.finalize();
-
-    let mut h2 = Hasher::new();
-    h2.update(domain);
-    h2.update(data);
-    h2.update(&[1]);
-    let r2 = h2.finalize();
-
-    let mut wide = [0u8; 64];
-    wide[..32].copy_from_slice(r1.as_bytes());
-    wide[32..].copy_from_slice(r2.as_bytes());
-    F::from_le_bytes_mod_order(&wide)
+    F::from_le_bytes_mod_order(&r1.as_bytes()[0..32])
 }
 
 /// Hash compressed commitment bytes to field element (domain separated)

@@ -64,7 +64,7 @@ impl<'a> TryFrom<&'a [AccountInfo]> for NewDistributorAccounts<'a> {
 #[repr(C)]
 pub struct NewDistributorInstructionData {
     pub version: u64,
-    pub root: [u8; 64],
+    pub root: [u8; 48],
     pub max_total_claim: u64,
     pub max_num_nodes: u64,
     pub start_vesting_ts: i64,
