@@ -4,9 +4,49 @@ use ark_bn254::{Fr as F, G1Affine};
 use ark_ff::PrimeField;
 use ark_poly::univariate::DensePolynomial;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use blake3::Hasher;
+use serde::{
+    de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer,
+};
 use std::vec::Vec;
 
-use blake3::Hasher;
+const LEAF_PREFIX: &[u8] = &[0];
+const INTERMEDIATE_PREFIX: &[u8] = &[1];
+
+macro_rules! hashv {
+    ($($expr:expr),*) => {{
+        let mut hash = Hasher::new();
+        $(
+            hash.update($expr);
+        )*
+        hash.finalize()
+    }};
+}
+
+macro_rules! field_leaf {
+    ($claimant:expr, $amount_locked:expr, $amount_unlocked:expr) => {{
+        // Use LEAF_PREFIX consistently with TreeNode.hash()
+        let hash = hashv!(
+            LEAF_PREFIX,
+            $claimant.as_ref(),
+            &$amount_unlocked.to_le_bytes(),
+            &$amount_locked.to_le_bytes()
+        );
+        // Convert hash directly to field element
+        F::from_le_bytes_mod_order(&hash.as_bytes()[0..32])
+    }};
+}
+
+macro_rules! field_commitment {
+    ($commitment:expr) => {{
+        let mut bytes = Vec::with_capacity(64);
+        $commitment
+            .serialize_compressed(&mut bytes)
+            .expect("serialize commitment");
+        let hash = hashv!(INTERMEDIATE_PREFIX, &bytes);
+        F::from_le_bytes_mod_order(&hash.as_bytes()[0..32])
+    }};
+}
 
 use crate::VERKLE_TREE_WIDTH;
 
@@ -30,17 +70,163 @@ struct VerkleNode {
 /// Single-leaf proof path (root -> leaf node).
 #[derive(Debug, Clone)]
 pub struct VerkleProof {
-    pub leaf_index: u32,
-    pub leaf_value: F,
-    pub path: Vec<ProofNode>,
+    pub path: Vec<ProofEntry>,
 }
 
+// Commitment, KZG proof commitment, eval index, eval value
 #[derive(Debug, Clone)]
-pub struct ProofNode {
-    pub commitment: G1Affine,
-    pub eval_index: u16, // slot queried within this node's polynomial
-    pub eval_value: F,   // value returned by polynomial at eval_index
-    pub kzg_proof: G1Affine,
+pub struct ProofEntry {
+    pub commitment: G1Affine, //48 bytes
+    pub kzg_proof: G1Affine, // 48 bytes
+    pub eval_index: F, // 32 bytes
+    pub eval_value: F, // 32 bytes
+}
+
+impl PartialEq for VerkleProof {
+    fn eq(&self, other: &Self) -> bool {
+        self.path.len() == other.path.len()
+            && self.path.iter().zip(other.path.iter()).all(|(a, b)| a == b)
+    }
+}
+
+impl PartialEq for ProofEntry {
+    fn eq(&self, other: &Self) -> bool {
+        // Compare by serializing to bytes since arkworks types don't implement PartialEq consistently
+        let self_commitment_bytes = {
+            let mut bytes = Vec::new();
+            self.commitment
+                .serialize_compressed(&mut bytes)
+                .unwrap_or(());
+            bytes
+        };
+        let other_commitment_bytes = {
+            let mut bytes = Vec::new();
+            other
+                .commitment
+                .serialize_compressed(&mut bytes)
+                .unwrap_or(());
+            bytes
+        };
+
+        let self_kzg_bytes = {
+            let mut bytes = Vec::new();
+            self.kzg_proof
+                .serialize_compressed(&mut bytes)
+                .unwrap_or(());
+            bytes
+        };
+        let other_kzg_bytes = {
+            let mut bytes = Vec::new();
+            other
+                .kzg_proof
+                .serialize_compressed(&mut bytes)
+                .unwrap_or(());
+            bytes
+        };
+
+        let self_eval_index_bytes = {
+            let mut bytes = Vec::new();
+            self.eval_index
+                .serialize_compressed(&mut bytes)
+                .unwrap_or(());
+            bytes
+        };
+        let other_eval_index_bytes = {
+            let mut bytes = Vec::new();
+            other
+                .eval_index
+                .serialize_compressed(&mut bytes)
+                .unwrap_or(());
+            bytes
+        };
+
+        let self_eval_value_bytes = {
+            let mut bytes = Vec::new();
+            self.eval_value
+                .serialize_compressed(&mut bytes)
+                .unwrap_or(());
+            bytes
+        };
+        let other_eval_value_bytes = {
+            let mut bytes = Vec::new();
+            other
+                .eval_value
+                .serialize_compressed(&mut bytes)
+                .unwrap_or(());
+            bytes
+        };
+
+        self_commitment_bytes == other_commitment_bytes
+            && self_kzg_bytes == other_kzg_bytes
+            && self_eval_index_bytes == other_eval_index_bytes
+            && self_eval_value_bytes == other_eval_value_bytes
+    }
+}
+
+impl Serialize for VerkleProof {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let path_bytes: Result<Vec<Vec<u8>>, S::Error> = self
+            .path
+            .iter()
+            .map(|entry| {
+                let mut bytes = Vec::new();
+                entry
+                    .commitment
+                    .serialize_compressed(&mut bytes)
+                    .map_err(|_| S::Error::custom("Failed to serialize commitment"))?;
+                entry
+                    .kzg_proof
+                    .serialize_compressed(&mut bytes)
+                    .map_err(|_| S::Error::custom("Failed to serialize kzg_proof"))?;
+                entry
+                    .eval_index
+                    .serialize_compressed(&mut bytes)
+                    .map_err(|_| S::Error::custom("Failed to serialize eval_index"))?;
+                entry
+                    .eval_value
+                    .serialize_compressed(&mut bytes)
+                    .map_err(|_| S::Error::custom("Failed to serialize eval_value"))?;
+                Ok(bytes)
+            })
+            .collect();
+
+        path_bytes?.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for VerkleProof {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let path_bytes: Vec<Vec<u8>> = Vec::deserialize(deserializer)?;
+        let mut path = Vec::new();
+
+        for bytes in path_bytes {
+            let mut cursor = &bytes[..];
+
+            let commitment = G1Affine::deserialize_compressed(&mut cursor)
+                .map_err(|_| D::Error::custom("Failed to deserialize commitment"))?;
+            let kzg_proof = G1Affine::deserialize_compressed(&mut cursor)
+                .map_err(|_| D::Error::custom("Failed to deserialize kzg_proof"))?;
+            let eval_index = F::deserialize_compressed(&mut cursor)
+                .map_err(|_| D::Error::custom("Failed to deserialize eval_index"))?;
+            let eval_value = F::deserialize_compressed(&mut cursor)
+                .map_err(|_| D::Error::custom("Failed to deserialize eval_value"))?;
+
+            path.push(ProofEntry {
+                commitment,
+                kzg_proof,
+                eval_index,
+                eval_value,
+            });
+        }
+
+        Ok(VerkleProof { path })
+    }
 }
 
 #[derive(Debug)]
@@ -56,14 +242,13 @@ impl VerkleTree {
             return Err(VerkleTreeError::EmptyInput);
         }
 
-        // Convert TreeNodes to field elements using the same hash as Merkle
+        // Convert TreeNodes to field elements using LEAF_PREFIX approach
         let leaves: Vec<F> = nodes
             .iter()
             .map(|node| {
-                // Use the same hash method as Merkle: node.hash() -> bytes
+                // TreeNode.hash() now includes LEAF_PREFIX, convert directly to field
                 let hash = node.hash();
-                let hash_bytes = hash.as_bytes();
-                hash_to_field(b"verkle:leaf", hash_bytes)
+                F::from_le_bytes_mod_order(&hash.as_bytes()[0..32])
             })
             .collect();
         if leaves.is_empty() {
@@ -102,7 +287,7 @@ impl VerkleTree {
             .map(|group| {
                 let child_values: Vec<F> = group
                     .iter()
-                    .map(|c| hash_commitment_to_field(&c.commitment))
+                    .map(|c| field_commitment!(c.commitment))
                     .collect();
                 let poly = KZGCommitment::vector_to_polynomial(&child_values);
                 let com = kzg.commit_polynomial(&poly);
@@ -121,8 +306,8 @@ impl VerkleTree {
         self.root.commitment
     }
 
-    pub fn root_bytes(&self) -> [u8; 48] {
-        let mut bytes = [0u8; 48];
+    pub fn root_bytes(&self) -> [u8; 64] {
+        let mut bytes = [0u8; 64];
         self.root
             .commitment
             .serialize_compressed(&mut bytes[..])
@@ -142,7 +327,7 @@ impl VerkleTree {
         if leaf_index >= self.total_leaves {
             return Err(VerkleTreeError::IndexOutOfRange);
         }
-        let mut path: Vec<ProofNode> = Vec::new();
+        let mut path: Vec<ProofEntry> = Vec::new();
         let mut node = &self.root;
         let mut offset = leaf_index; // remaining index within this node's subtree
         loop {
@@ -161,17 +346,17 @@ impl VerkleTree {
                         acc += ch.raw_leaf_count;
                     }
                     let x = F::from(child_idx as u64);
-                    let eval_value = hash_commitment_to_field(&children[child_idx].commitment);
+                    let eval_value = field_commitment!(children[child_idx].commitment);
                     let proof_points = vec![(x, eval_value)];
                     let proof = self
                         .kzg
                         .generate_proof(&node.polynomial, &proof_points)
                         .map_err(|_| VerkleTreeError::ProofFailure)?;
-                    path.push(ProofNode {
+                    path.push(ProofEntry {
                         commitment: node.commitment,
-                        eval_index: child_idx as u16,
-                        eval_value,
                         kzg_proof: proof,
+                        eval_index: F::from(child_idx as u64),
+                        eval_value,
                     });
                     node = &children[child_idx];
                     offset = child_offset; // descend
@@ -184,44 +369,22 @@ impl VerkleTree {
                         .kzg
                         .generate_proof(&node.polynomial, &proof_points)
                         .map_err(|_| VerkleTreeError::ProofFailure)?;
-                    path.push(ProofNode {
+                    path.push(ProofEntry {
                         commitment: node.commitment,
-                        eval_index: offset as u16,
-                        eval_value: leaf_value,
                         kzg_proof: proof,
+                        eval_index: F::from(offset as u64),
+                        eval_value: leaf_value,
                     });
                     break;
                 }
             }
         }
-        Ok(VerkleProof {
-            leaf_index: leaf_index as u32,
-            leaf_value,
-            path,
-        })
+        Ok(VerkleProof { path })
     }
 }
 
-/// Core hash-to-field function with domain separation
-fn hash_to_field(domain: &[u8], data: &[u8]) -> F {
-    // 64-byte wide expansion using two Blake3 hashes with domain separation
-    let mut h1 = Hasher::new();
-    h1.update(domain);
-    h1.update(data);
-    let r1 = h1.finalize();
-    F::from_le_bytes_mod_order(&r1.as_bytes()[0..32])
-}
-
-/// Hash compressed commitment bytes to field element (domain separated)
-fn hash_commitment_to_field(c: &G1Affine) -> F {
-    let mut bytes = Vec::with_capacity(48);
-    c.serialize_compressed(&mut bytes)
-        .expect("serialize commitment");
-    hash_to_field(b"verkle:child", &bytes)
-}
-
 /// Main proof verification logic - can be used on-chain with precompiles
-pub fn verify_proof(root: &G1Affine, proof: &VerkleProof) -> bool {
+pub fn verify_proof(root: &G1Affine, proof: &VerkleProof, expected_leaf_value: F) -> bool {
     if proof.path.is_empty() {
         return false;
     }
@@ -235,21 +398,20 @@ pub fn verify_proof(root: &G1Affine, proof: &VerkleProof) -> bool {
     // Iterate nodes; verify each and linkage
     for i in 0..proof.path.len() {
         let pn = &proof.path[i];
-        let x = F::from(pn.eval_index as u64);
-        let pts = vec![(x, pn.eval_value)];
+        let pts = vec![(pn.eval_index, pn.eval_value)];
         if !kzg.verify_proof(&pn.commitment, &pts, &pn.kzg_proof) {
             return false;
         }
         if i < proof.path.len() - 1 {
             // internal linkage: eval_value should be hash(child commitment)
             let child_commit = proof.path[i + 1].commitment;
-            let expected = hash_commitment_to_field(&child_commit);
+            let expected = field_commitment!(child_commit);
             if expected != pn.eval_value {
                 return false;
             }
         } else {
             // last node (leaf layer) eval_value should equal provided leaf_value
-            if pn.eval_value != proof.leaf_value {
+            if pn.eval_value != expected_leaf_value {
                 return false;
             }
         }
@@ -258,30 +420,33 @@ pub fn verify_proof(root: &G1Affine, proof: &VerkleProof) -> bool {
 }
 
 /// Verify proof against root commitment bytes (for on-chain use)
-pub fn verify_proof_bytes(root_bytes: &[u8; 48], proof: &VerkleProof) -> bool {
+pub fn verify_proof_bytes(
+    root_bytes: &[u8; 64],
+    proof: &VerkleProof,
+    expected_leaf_value: F,
+) -> bool {
     // Deserialize root commitment from bytes
     let root = match G1Affine::deserialize_compressed(&root_bytes[..]) {
         Ok(root) => root,
         Err(_) => return false,
     };
 
-    verify_proof(&root, proof)
+    verify_proof(&root, proof, expected_leaf_value)
 }
 
-/// Verify proof for a TreeNode (recomputes field element from node data)
-pub fn verify_tree_node_proof(root_bytes: &[u8; 48], proof: &VerkleProof, node: &TreeNode) -> bool {
-    // Recompute leaf field element from TreeNode
-    let hash = node.hash();
-    let hash_bytes = hash.as_bytes();
-    let expected_leaf_value = hash_to_field(b"verkle:leaf", hash_bytes);
-
-    // Check that proof leaf_value matches
-    if proof.leaf_value != expected_leaf_value {
-        return false;
-    }
+/// Verify proof for a TreeNode using separate parameters (for on-chain use)
+pub fn verify_tree_node_proof(
+    root_bytes: &[u8; 64],
+    proof: &VerkleProof,
+    claimant: &[u8; 32],
+    amount_locked: u64,
+    amount_unlocked: u64,
+) -> bool {
+    // Generate leaf field element directly from components using macro
+    let expected_leaf_value = field_leaf!(claimant, amount_locked, amount_unlocked);
 
     // Standard proof verification
-    verify_proof_bytes(root_bytes, proof)
+    verify_proof_bytes(root_bytes, proof, expected_leaf_value)
 }
 
 #[cfg(test)]
@@ -317,15 +482,19 @@ mod tests {
         for idx in [0, 15, 31, 49] {
             let node = &nodes[idx];
             let hash = node.hash();
-            let hash_bytes = hash.as_bytes();
-            let leaf_value = hash_to_field(b"verkle:leaf", hash_bytes);
+            let leaf_value = F::from_le_bytes_mod_order(&hash.as_bytes()[0..32]);
             let proof = tree.generate_proof(idx, leaf_value).unwrap();
 
             // Verify with byte-based verification (on-chain style)
-            assert!(verify_proof_bytes(&root_bytes, &proof));
-
-            // Verify with TreeNode-specific verification
-            assert!(verify_tree_node_proof(&root_bytes, &proof, node));
+            assert!(verify_proof_bytes(&root_bytes, &proof, leaf_value));
+            // NEW: Verify with individual parameters (on-chain style)
+            assert!(verify_tree_node_proof(
+                &root_bytes,
+                &proof,
+                &node.claimant,
+                node.amount_locked(),
+                node.amount_unlocked()
+            ));
         }
     }
 
@@ -352,13 +521,12 @@ mod tests {
         for idx in [0, 31, 32, 34] {
             let node = &nodes[idx];
             let hash = node.hash();
-            let hash_bytes = hash.as_bytes();
-            let leaf_value = hash_to_field(b"verkle:leaf", hash_bytes);
+            let leaf_value = F::from_le_bytes_mod_order(&hash.as_bytes()[0..32]);
             let proof = tree.generate_proof(idx, leaf_value).unwrap();
 
             // Should have 2 levels: leaf chunk + root
             assert_eq!(proof.path.len(), 2);
-            assert!(verify_tree_node_proof(&root_bytes, &proof, node));
+            assert!(verify_proof_bytes(&root_bytes, &proof, leaf_value));
         }
     }
 
@@ -386,12 +554,52 @@ mod tests {
 
         let tree = VerkleTree::new(&nodes).unwrap();
         let hash = nodes[0].hash();
-        let hash_bytes = hash.as_bytes();
-        let leaf_value = hash_to_field(b"verkle:leaf", hash_bytes);
+        let leaf_value = F::from_le_bytes_mod_order(&hash.as_bytes()[0..32]);
 
         // Try to prove index beyond range
         let result = tree.generate_proof(15, leaf_value);
         assert!(matches!(result, Err(VerkleTreeError::IndexOutOfRange)));
+    }
+
+    #[test]
+    fn test_macro_field_generation() {
+        let claimant = [42u8; 32];
+        let amount_locked = 1000u64;
+        let amount_unlocked = 500u64;
+
+        // Test field_leaf macro
+        let field1 = field_leaf!(claimant, amount_locked, amount_unlocked);
+        let field2 = field_leaf!(claimant, amount_locked, amount_unlocked);
+        assert_eq!(field1, field2, "field_leaf should be deterministic");
+
+        // Test different inputs produce different outputs
+        let field3 = field_leaf!(claimant, amount_locked + 1, amount_unlocked);
+        assert_ne!(
+            field1, field3,
+            "Different inputs should produce different field elements"
+        );
+
+        // Test field_commitment macro
+        let tree_node = TreeNode {
+            claimant,
+            proof: None,
+            total_unlocked_staker: amount_unlocked,
+            total_locked_staker: amount_locked,
+            total_unlocked_searcher: 0,
+            total_locked_searcher: 0,
+            total_unlocked_validator: 0,
+            total_locked_validator: 0,
+        };
+
+        let tree = VerkleTree::new(&[tree_node]).unwrap();
+        let commitment = tree.root_commitment();
+
+        let field_comm1 = field_commitment!(commitment);
+        let field_comm2 = field_commitment!(commitment);
+        assert_eq!(
+            field_comm1, field_comm2,
+            "field_commitment should be deterministic"
+        );
     }
 
     #[test]
@@ -412,8 +620,8 @@ mod tests {
         let tree = VerkleTree::new(&nodes).unwrap();
         let root_bytes = tree.root_bytes();
 
-        // Should be 48 bytes (compressed G1 point)
-        assert_eq!(root_bytes.len(), 48);
+        // Should be 64 bytes (compressed G1 point)
+        assert_eq!(root_bytes.len(), 64);
 
         // Should be able to deserialize back
         let root_reconstructed = G1Affine::deserialize_compressed(&root_bytes[..]).unwrap();

@@ -1,7 +1,8 @@
 [workspace]
 members = [
     "program", 
-    "verkle-tree"
+    "verkle-tree",
+    "verify"
 ]
 resolver = "2"
 

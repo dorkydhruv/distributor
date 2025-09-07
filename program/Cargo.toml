@@ -1,5 +1,5 @@
 [package]
-name = "pinocchio-distributor"
+name = "distributor"
 version = "0.1.0"
 edition = "2021"
 
@@ -14,12 +14,10 @@ pinocchio-system = { git = "https://github.com/anza-xyz/pinocchio.git" }
 pinocchio-token = { git = "https://github.com/anza-xyz/pinocchio.git" }
 
 [dev-dependencies]
-solana-sdk = "2.1.0"
-mollusk-svm = "0.1.4"
+solana-sdk = "2.2.1"
+mollusk-svm = "0.4.0"
+mollusk-svm-bencher = "0.4.0"
 spl-token = "8.0.0"
-mollusk-svm-bencher = "0.1.4"
-verkle-tree = {workspace = true}
-
 
 [features]
 no-entrypoint = []

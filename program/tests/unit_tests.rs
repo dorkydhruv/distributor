@@ -10,14 +10,14 @@ use solana_sdk::pubkey::Pubkey;
 extern crate std;
 use std::vec;
 
-use pinocchio_distributor::instruction::*;
-use pinocchio_distributor::state::*;
+use distributor::instruction::*;
+use distributor::state::*;
 
-pub const PROGRAM: Pubkey = Pubkey::new_from_array(pinocchio_distributor::ID);
+pub const PROGRAM: Pubkey = Pubkey::new_from_array(distributor::ID);
 pub const RENT: Pubkey = pubkey!("SysvarRent111111111111111111111111111111111");
 
 pub fn mollusk() -> Mollusk {
-    let mut mollusk = Mollusk::new(&PROGRAM, "../target/deploy/pinocchio_distributor");
+    let mut mollusk = Mollusk::new(&PROGRAM, "../target/deploy/distributor");
     mollusk.add_program(
         &spl_token::ID,
         "tests/elfs/spl_token",

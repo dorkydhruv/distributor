@@ -2,7 +2,10 @@ use blake3::{Hash, Hasher};
 use serde::{Deserialize, Serialize};
 
 use crate::csv_entry::{AirdropCategory, CsvEntry};
+use crate::verkle_tree::VerkleProof;
+
 pub const MINT_DECIMALS: u32 = 9;
+const LEAF_PREFIX: &[u8] = &[0];
 
 macro_rules! hashv {
     ($($expr:expr),*) => {{
@@ -15,12 +18,13 @@ macro_rules! hashv {
 }
 
 /// Represents the claim information for an account.
-#[derive(Debug, Clone, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TreeNode {
     /// Pubkey of the claimant; will be responsible for signing the claim
     pub claimant: [u8; 32],
     /// Claimant's proof of inclusion in the Verkle Tree
-    pub proof: Option<Vec<[u8; 32]>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proof: Option<VerkleProof>,
     /// Total amount unlocked under staker allocation
     pub total_unlocked_staker: u64,
     /// Total amount locked under staker allocation
@@ -38,9 +42,10 @@ pub struct TreeNode {
 impl TreeNode {
     pub fn hash(&self) -> Hash {
         hashv!(
+            LEAF_PREFIX,
             self.claimant.as_ref(),
-            &self.total_amount().to_le_bytes(),
-            &self.total_locked_staker.to_le_bytes()
+            &self.amount_unlocked().to_le_bytes(),
+            &self.amount_locked().to_le_bytes()
         )
     }
 
