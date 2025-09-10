@@ -28,6 +28,10 @@ pub struct VerkleDistributor {
     pub clawback_receiver: Pubkey,
     /// Admin wallet
     pub admin: Pubkey,
+    /// G1 trusted setup element
+    pub g1_trusted_setup: [u8; 48],
+    /// G2 trusted setup element
+    pub g2_trusted_setup: [u8; 96],
     /// Whether or not the distributor has been clawed back
     pub clawed_back: u8,
     /// Bump seed.
