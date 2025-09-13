@@ -502,11 +502,11 @@ mod tests {
     fn test_proof_linkage() {
         // Build small tree to check internal proof linkage
         let nodes: Vec<TreeNode> = (0..35)
-            .map(|i| TreeNode {
+            .map(|i: i32| TreeNode {
                 claimant: [i as u8; 32],
                 proof: None,
-                total_unlocked_staker: i * 100,
-                total_locked_staker: i * 50,
+                total_unlocked_staker: (i * 100) as u64,
+                total_locked_staker: (i * 50) as u64,
                 total_unlocked_searcher: 0,
                 total_locked_searcher: 0,
                 total_unlocked_validator: 0,
@@ -540,7 +540,7 @@ mod tests {
     #[test]
     fn test_out_of_range_proof() {
         let nodes: Vec<TreeNode> = (0..10)
-            .map(|i| TreeNode {
+            .map(|i: i32| TreeNode {
                 claimant: [i as u8; 32],
                 proof: None,
                 total_unlocked_staker: 100,
@@ -605,7 +605,7 @@ mod tests {
     #[test]
     fn test_root_bytes_serialization() {
         let nodes: Vec<TreeNode> = (0..10)
-            .map(|i| TreeNode {
+            .map(|i: i32| TreeNode {
                 claimant: [i as u8; 32],
                 proof: None,
                 total_unlocked_staker: 100,
