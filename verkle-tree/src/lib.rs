@@ -1,7 +1,7 @@
 pub mod airdrop_verkle_tree;
 mod csv_entry;
 mod error;
-pub mod kzg_commitment;
+// old kzg_commitment deprecated; new logic uses external kzg crate
 mod tree_node;
 mod verkle_tree;
 

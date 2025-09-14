@@ -12,6 +12,7 @@ pinocchio-log = { git = "https://github.com/anza-xyz/pinocchio.git" }
 pinocchio-pubkey = { git = "https://github.com/anza-xyz/pinocchio.git" }
 pinocchio-system = { git = "https://github.com/anza-xyz/pinocchio.git" }
 pinocchio-token = { git = "https://github.com/anza-xyz/pinocchio.git" }
+blake3 = { version = "1", default-features = false, features=["std"] }
 
 [dev-dependencies]
 solana-sdk = "2.2.1"

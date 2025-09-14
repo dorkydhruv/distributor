@@ -1,10 +1,9 @@
 use ark_bn254::Fr as F;
 use ark_ff::PrimeField;
-use serde::{Deserialize, Serialize};
+// serde no longer used for AirdropVerkleTree; retained elsewhere for CSV parsing only
 use std::{
     collections::{HashMap, HashSet},
-    fs::File,
-    io::{BufReader, Write},
+    // removed file IO for JSON; keep PathBuf only
     path::PathBuf,
     result,
 };
@@ -32,48 +31,21 @@ pub struct AirdropVerkleTree {
     pub tree_nodes: Vec<TreeNode>,
 }
 
-// Custom serialization for verkle_root since [u8; 64] doesn't implement Serialize/Deserialize
-#[derive(Serialize, Deserialize)]
-struct AirdropVerkleTreeSerializable {
-    verkle_root: Vec<u8>,
-    max_num_nodes: u64,
-    max_total_claim: u64,
-    tree_nodes: Vec<TreeNode>,
-}
-
-impl Serialize for AirdropVerkleTree {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let serializable = AirdropVerkleTreeSerializable {
-            verkle_root: self.verkle_root.to_vec(),
-            max_num_nodes: self.max_num_nodes,
-            max_total_claim: self.max_total_claim,
-            tree_nodes: self.tree_nodes.clone(),
-        };
-        serializable.serialize(serializer)
+impl AirdropVerkleTree {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        out.extend_from_slice(&self.verkle_root);
+        out.extend_from_slice(&self.max_num_nodes.to_le_bytes());
+        out.extend_from_slice(&self.max_total_claim.to_le_bytes());
+        // NOTE: tree_nodes not serialized here (would need custom encoding); intentionally omitted per request.
+        out
     }
-}
-
-impl<'de> Deserialize<'de> for AirdropVerkleTree {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let serializable = AirdropVerkleTreeSerializable::deserialize(deserializer)?;
-        let mut verkle_root = [0u8; 64];
-        if serializable.verkle_root.len() != 64 {
-            return Err(serde::de::Error::custom("Invalid verkle_root length"));
-        }
-        verkle_root.copy_from_slice(&serializable.verkle_root);
-
-        Ok(AirdropVerkleTree {
-            verkle_root,
-            max_num_nodes: serializable.max_num_nodes,
-            max_total_claim: serializable.max_total_claim,
-            tree_nodes: serializable.tree_nodes,
-        })
+    pub fn from_bytes(data: &[u8]) -> Option<Self> {
+        if data.len() < 64 + 8 + 8 { return None; }
+        let mut root = [0u8;64]; root.copy_from_slice(&data[0..64]);
+        let max_num_nodes = u64::from_le_bytes(data[64..72].try_into().ok()?);
+        let max_total_claim = u64::from_le_bytes(data[72..80].try_into().ok()?);
+        Some(Self { verkle_root: root, max_num_nodes, max_total_claim, tree_nodes: Vec::new() })
     }
 }
 
@@ -160,25 +132,7 @@ impl AirdropVerkleTree {
         Ok(tree)
     }
 
-    /// Load a serialized verkle tree from file path
-    pub fn new_from_file(path: &PathBuf) -> Result<Self> {
-        let file = File::open(path).map_err(|e| VerkleTreeError::IoError(e))?;
-        let reader = BufReader::new(file);
-        let tree: AirdropVerkleTree =
-            serde_json::from_reader(reader).map_err(|e| VerkleTreeError::SerdeError(e))?;
-
-        Ok(tree)
-    }
-
-    /// Write a verkle tree to a filepath
-    pub fn write_to_file(&self, path: &PathBuf) -> Result<()> {
-        let serialized =
-            serde_json::to_string_pretty(&self).map_err(|e| VerkleTreeError::SerdeError(e))?;
-        let mut file = File::create(path).map_err(|e| VerkleTreeError::IoError(e))?;
-        file.write_all(serialized.as_bytes())
-            .map_err(|e| VerkleTreeError::IoError(e))?;
-        Ok(())
-    }
+    // JSON load/save removed: user requested bytes-only serialization.
 
     pub fn get_node(&self, claimant: &[u8; 32]) -> Option<&TreeNode> {
         self.tree_nodes
@@ -255,7 +209,6 @@ impl AirdropVerkleTree {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
 
     fn create_test_node(claimant: [u8; 32], unlocked: u64, locked: u64) -> TreeNode {
         TreeNode {
@@ -325,8 +278,8 @@ mod tests {
         // Verify proof is stored in the node
         assert!(node.proof.is_some(), "Proof should be stored in TreeNode");
 
-        let proof = tree.get_proof(&[1; 32]).unwrap();
-        assert!(!proof.path.is_empty());
+    let proof = tree.get_proof(&[1; 32]).unwrap();
+    assert!(!proof.0.commitments.is_empty());
 
         // Verify the stored proof matches what get_proof returns
         assert_eq!(node.proof.as_ref().unwrap(), &proof);
@@ -349,7 +302,7 @@ mod tests {
                 "All nodes should have proofs stored after tree creation"
             );
             let proof = node.proof.as_ref().unwrap();
-            assert!(!proof.path.is_empty(), "Proof should not be empty");
+            assert!(!proof.0.commitments.is_empty(), "Proof should not be empty");
         }
 
         // Verify we can retrieve all proofs
@@ -359,24 +312,4 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_serialize_deserialize() {
-        let nodes = vec![
-            create_test_node([1; 32], 100, 50),
-            create_test_node([2; 32], 200, 100),
-        ];
-
-        let tree = AirdropVerkleTree::new(nodes).unwrap();
-        let path = PathBuf::from("test_verkle_tree.json");
-
-        tree.write_to_file(&path).unwrap();
-        let loaded_tree = AirdropVerkleTree::new_from_file(&path).unwrap();
-
-        assert_eq!(tree.verkle_root, loaded_tree.verkle_root);
-        assert_eq!(tree.max_num_nodes, loaded_tree.max_num_nodes);
-        assert_eq!(tree.max_total_claim, loaded_tree.max_total_claim);
-
-        // Clean up
-        std::fs::remove_file(&path).ok();
-    }
 }

@@ -978,6 +978,7 @@ dependencies = [
 name = "distributor"
 version = "0.1.0"
 dependencies = [
+ "blake3",
  "mollusk-svm",
  "mollusk-svm-bencher",
  "pinocchio",
@@ -1718,6 +1719,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ecc2af9a1119c51f12a14607e783cb977bde58bc069ff0c3da1095e635d70654"
 dependencies = [
  "cpufeatures",
+]
+
+[[package]]
+name = "kzg"
+version = "0.1.0"
+dependencies = [
+ "ark-bn254 0.5.0",
+ "ark-ec 0.5.0",
+ "ark-ff 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
+ "blake3",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -4586,6 +4600,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "srs-cli"
+version = "0.1.0"
+dependencies = [
+ "ark-bn254 0.5.0",
+ "ark-ec 0.5.0",
+ "ark-ff 0.5.0",
+ "ark-serialize 0.5.0",
+ "blake3",
+ "kzg",
+]
+
+[[package]]
 name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4926,6 +4952,9 @@ dependencies = [
  "ark-poly 0.5.0",
  "ark-serialize 0.5.0",
  "ark-std 0.5.0",
+ "blake3",
+ "kzg",
+ "verkle-tree",
 ]
 
 [[package]]
@@ -4942,6 +4971,7 @@ dependencies = [
  "blake3",
  "csv",
  "fast-math",
+ "kzg",
  "num-bigint 0.4.6",
  "rayon",
  "serde",

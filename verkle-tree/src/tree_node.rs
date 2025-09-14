@@ -1,5 +1,5 @@
 use blake3::{Hash, Hasher};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::csv_entry::{AirdropCategory, CsvEntry};
 use crate::verkle_tree::VerkleProof;
@@ -18,12 +18,12 @@ macro_rules! hashv {
 }
 
 /// Represents the claim information for an account.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct TreeNode {
     /// Pubkey of the claimant; will be responsible for signing the claim
     pub claimant: [u8; 32],
     /// Claimant's proof of inclusion in the Verkle Tree
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip)]
     pub proof: Option<VerkleProof>,
     /// Total amount unlocked under staker allocation
     pub total_unlocked_staker: u64,
@@ -124,26 +124,5 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_serialize_tree_node() {
-        let tree_node = TreeNode {
-            claimant: [0; 32],
-            proof: None,
-            total_unlocked_staker: 0,
-            total_locked_staker: 0,
-            total_unlocked_searcher: 0,
-            total_locked_searcher: 0,
-            total_unlocked_validator: 0,
-            total_locked_validator: 0,
-        };
-        let serialized = serde_json::to_string(&tree_node).unwrap();
-        let deserialized: TreeNode = serde_json::from_str(&serialized).unwrap();
-        assert_eq!(tree_node, deserialized);
-    }
-
-    #[test]
-    fn test_ui_amount_to_token_amount() {
-        let ui_amount = 5;
-        let token_amount = ui_amount_to_token_amount(ui_amount);
-        assert_eq!(token_amount, 5_000_000_000);
-    }
+    fn test_ui_amount_to_token_amount() { assert_eq!(ui_amount_to_token_amount(5), 5_000_000_000); }
 }

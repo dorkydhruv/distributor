@@ -3,7 +3,7 @@ members = [
     "program", 
     "verkle-tree",
     "verify"
-]
+, "kzg", "srs-cli"]
 resolver = "2"
 
 [workspace.dependencies]
