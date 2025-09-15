@@ -46,7 +46,9 @@ macro_rules! field_commitment {
 }
 
 use crate::VERKLE_TREE_WIDTH;
-use kzg::{SrsEval, EvalPoly, commit_eval, build_path_multiproof, verify_path_multiproof, PathMultiproof};
+use kzg::{
+    build_path_multiproof, commit_eval, verify_path_multiproof, EvalPoly, PathMultiproof, SrsEval,
+};
 
 /// KZG-based multi-ary Verkle-style commitment tree
 /// Leaves: raw field elements. Leaf layer groups up to WIDTH leaves into one polynomial.
@@ -73,9 +75,12 @@ struct VerkleNode {
 #[derive(Debug, Clone)]
 pub struct VerkleProof(pub PathMultiproof);
 
-impl PartialEq for VerkleProof { fn eq(&self, other: &Self) -> bool { // compare serialized form
-    self.to_bytes() == other.to_bytes()
-}}
+impl PartialEq for VerkleProof {
+    fn eq(&self, other: &Self) -> bool {
+        // compare serialized form
+        self.to_bytes() == other.to_bytes()
+    }
+}
 
 impl VerkleProof {
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -83,9 +88,15 @@ impl VerkleProof {
         // depth + commitments + indices + values + d_commit + h_commit + sigma + y + w
         let mut out = Vec::new();
         out.push(p.commitments.len() as u8);
-        for c in &p.commitments { c.serialize_compressed(&mut out).unwrap(); }
-        out.push(p.indices.len() as u8); out.extend_from_slice(&p.indices);
-        out.push(p.values.len() as u8); for v in &p.values { v.serialize_compressed(&mut out).unwrap(); }
+        for c in &p.commitments {
+            c.serialize_compressed(&mut out).unwrap();
+        }
+        out.push(p.indices.len() as u8);
+        out.extend_from_slice(&p.indices);
+        out.push(p.values.len() as u8);
+        for v in &p.values {
+            v.serialize_compressed(&mut out).unwrap();
+        }
         p.d_commit.serialize_compressed(&mut out).unwrap();
         p.h_commit.serialize_compressed(&mut out).unwrap();
         p.sigma.serialize_compressed(&mut out).unwrap();
@@ -94,22 +105,73 @@ impl VerkleProof {
         out
     }
     pub fn from_bytes(data: &[u8]) -> Option<Self> {
-        if data.len()<1 { return None; }
+        if data.len() < 1 {
+            return None;
+        }
         let mut offset = 0;
-        let depth = data[offset] as usize; offset+=1;
+        let depth = data[offset] as usize;
+        offset += 1;
         let mut commitments = Vec::with_capacity(depth);
-        for _ in 0..depth { if offset+48>data.len(){return None;} let mut cur = &data[offset..offset+48]; let c = G1Affine::deserialize_compressed(&mut cur).ok()?; commitments.push(c); offset+=48; }
-        if offset>=data.len() { return None; }
-        let indices_len = data[offset] as usize; offset+=1; if offset+indices_len>data.len(){return None;} let indices = data[offset..offset+indices_len].to_vec(); offset+=indices_len;
-        if offset>=data.len() { return None; }
-        let values_len = data[offset] as usize; offset+=1; let mut values = Vec::with_capacity(values_len);
-        for _ in 0..values_len { if offset>=data.len(){return None;} let mut cur=&data[offset..]; let v = F::deserialize_compressed(&mut cur).ok()?; let consumed = data.len()-cur.len()-offset; offset+=consumed; values.push(v);}        
-        let mut cur=&data[offset..]; let d_commit=G1Affine::deserialize_compressed(&mut cur).ok()?; let consumed = data.len()-cur.len()-offset; offset+=consumed;
-        let mut cur=&data[offset..]; let h_commit=G1Affine::deserialize_compressed(&mut cur).ok()?; let consumed = data.len()-cur.len()-offset; offset+=consumed;
-        let mut cur=&data[offset..]; let sigma=G1Affine::deserialize_compressed(&mut cur).ok()?; let consumed = data.len()-cur.len()-offset; offset+=consumed;
-        let mut cur=&data[offset..]; let y=F::deserialize_compressed(&mut cur).ok()?; let consumed = data.len()-cur.len()-offset; offset+=consumed;
-        let mut cur=&data[offset..]; let w=F::deserialize_compressed(&mut cur).ok()?; // last element consumes rest
-        Some(VerkleProof(PathMultiproof { commitments, indices, values, d_commit, y, h_commit, w, sigma }))
+        for _ in 0..depth {
+            if offset + 32 > data.len() {
+                return None;
+            }
+            let mut cur = &data[offset..offset + 32];
+            let c = G1Affine::deserialize_compressed(&mut cur).ok()?;
+            commitments.push(c);
+            offset += 32;
+        }
+        if offset >= data.len() {
+            return None;
+        }
+        let indices_len = data[offset] as usize;
+        offset += 1;
+        if offset + indices_len > data.len() {
+            return None;
+        }
+        let indices = data[offset..offset + indices_len].to_vec();
+        offset += indices_len;
+        if offset >= data.len() {
+            return None;
+        }
+        let values_len = data[offset] as usize;
+        offset += 1;
+        let mut values = Vec::with_capacity(values_len);
+        for _ in 0..values_len {
+            if offset + 32 > data.len() { return None; }
+            let mut cur = &data[offset..offset+32];
+            let v = F::deserialize_compressed(&mut cur).ok()?;
+            values.push(v);
+            offset += 32;
+        }
+        let mut cur = &data[offset..];
+        let d_commit = G1Affine::deserialize_compressed(&mut cur).ok()?;
+        let consumed = data.len() - cur.len() - offset;
+        offset += consumed;
+        let mut cur = &data[offset..];
+        let h_commit = G1Affine::deserialize_compressed(&mut cur).ok()?;
+        let consumed = data.len() - cur.len() - offset;
+        offset += consumed;
+        let mut cur = &data[offset..];
+        let sigma = G1Affine::deserialize_compressed(&mut cur).ok()?;
+        let consumed = data.len() - cur.len() - offset;
+        offset += consumed;
+        let mut cur = &data[offset..];
+        let y = F::deserialize_compressed(&mut cur).ok()?;
+        let consumed = data.len() - cur.len() - offset;
+        offset += consumed;
+        let mut cur = &data[offset..];
+        let w = F::deserialize_compressed(&mut cur).ok()?; // last element consumes rest
+        Some(VerkleProof(PathMultiproof {
+            commitments,
+            indices,
+            values,
+            d_commit,
+            y,
+            h_commit,
+            w,
+            sigma,
+        }))
     }
 }
 
@@ -138,17 +200,26 @@ impl VerkleTree {
         if leaves.is_empty() {
             return Err(VerkleTreeError::EmptyInput);
         }
-    let srs = SrsEval::deterministic();
+        let srs = SrsEval::deterministic();
 
         let mut current: Vec<VerkleNode> = leaves
             .chunks(VERKLE_TREE_WIDTH)
             .map(|chunk| {
                 let mut evals = [F::zero(); VERKLE_TREE_WIDTH];
-                for (i,v) in chunk.iter().enumerate() { evals[i] = *v; }
+                for (i, v) in chunk.iter().enumerate() {
+                    evals[i] = *v;
+                }
                 let poly = EvalPoly { evals };
                 let com = commit_eval(&poly, &srs);
-                VerkleNode { commitment: com, evals, width: chunk.len(), children: None, raw_leaf_count: chunk.len() }
-            }).collect();
+                VerkleNode {
+                    commitment: com,
+                    evals,
+                    width: chunk.len(),
+                    children: None,
+                    raw_leaf_count: chunk.len(),
+                }
+            })
+            .collect();
         while current.len() > 1 {
             current = Self::create_parent_layers(&srs, current);
         }
@@ -165,7 +236,9 @@ impl VerkleTree {
             .chunks(VERKLE_TREE_WIDTH)
             .map(|group| {
                 let mut evals = [F::zero(); VERKLE_TREE_WIDTH];
-                for (i,c) in group.iter().enumerate() { evals[i] = field_commitment!(c.commitment); }
+                for (i, c) in group.iter().enumerate() {
+                    evals[i] = field_commitment!(c.commitment);
+                }
                 let poly = EvalPoly { evals };
                 let com = commit_eval(&poly, srs);
                 let raw_leaf_count = group.iter().map(|c| c.raw_leaf_count).sum();
@@ -184,8 +257,8 @@ impl VerkleTree {
         self.root.commitment
     }
 
-    pub fn root_bytes(&self) -> [u8; 64] {
-        let mut bytes = [0u8; 64];
+    pub fn root_bytes(&self) -> [u8; 32] {
+        let mut bytes = [0u8; 32];
         self.root
             .commitment
             .serialize_compressed(&mut bytes[..])
@@ -197,20 +270,50 @@ impl VerkleTree {
         self.total_leaves
     }
 
-    pub fn generate_proof(&self, leaf_index: usize, leaf_value: F) -> Result<VerkleProof, VerkleTreeError> {
+    pub fn generate_proof(
+        &self,
+        leaf_index: usize,
+        leaf_value: F,
+    ) -> Result<VerkleProof, VerkleTreeError> {
         if leaf_index >= self.total_leaves {
             return Err(VerkleTreeError::IndexOutOfRange);
         }
         let mut polys: Vec<EvalPoly> = Vec::new();
         let mut indices: Vec<usize> = Vec::new();
         let mut values: Vec<F> = Vec::new();
-        let mut node = &self.root; let mut offset = leaf_index;
-        loop { match &node.children { Some(children) => {
-                // locate child
-                let mut acc=0usize; let mut child_idx=0usize; let mut child_offset=offset; for (i,ch) in children.iter().enumerate(){ if offset < acc + ch.raw_leaf_count { child_idx=i; child_offset=offset-acc; break;} acc+=ch.raw_leaf_count; }
-                polys.push(EvalPoly { evals: node.evals }); indices.push(child_idx); values.push(field_commitment!(children[child_idx].commitment)); node=&children[child_idx]; offset=child_offset; }
-            None => { polys.push(EvalPoly { evals: node.evals }); indices.push(offset); values.push(leaf_value); break; } } }
-        let mp = build_path_multiproof(&polys, &indices, &self.srs).map_err(|_| VerkleTreeError::ProofFailure)?;
+        let mut node = &self.root;
+        let mut offset = leaf_index;
+        loop {
+            match &node.children {
+                Some(children) => {
+                    // locate child
+                    let mut acc = 0usize;
+                    let mut child_idx = 0usize;
+                    let mut child_offset = offset;
+                    for (i, ch) in children.iter().enumerate() {
+                        if offset < acc + ch.raw_leaf_count {
+                            child_idx = i;
+                            child_offset = offset - acc;
+                            break;
+                        }
+                        acc += ch.raw_leaf_count;
+                    }
+                    polys.push(EvalPoly { evals: node.evals });
+                    indices.push(child_idx);
+                    values.push(field_commitment!(children[child_idx].commitment));
+                    node = &children[child_idx];
+                    offset = child_offset;
+                }
+                None => {
+                    polys.push(EvalPoly { evals: node.evals });
+                    indices.push(offset);
+                    values.push(leaf_value);
+                    break;
+                }
+            }
+        }
+        let mp = build_path_multiproof(&polys, &indices, &self.srs)
+            .map_err(|_| VerkleTreeError::ProofFailure)?;
         // sanity: replace values inside mp with recomputed values (builder already stored them) not needed
         Ok(VerkleProof(mp))
     }
@@ -219,17 +322,32 @@ impl VerkleTree {
 /// Main proof verification logic - can be used on-chain with precompiles
 pub fn verify_proof(root: &G1Affine, proof: &VerkleProof, expected_leaf_value: F) -> bool {
     let p = &proof.0;
-    if p.commitments.is_empty() { return false; }
-    if p.commitments[0] != *root { return false; }
+    if p.commitments.is_empty() {
+        return false;
+    }
+    if p.commitments[0] != *root {
+        return false;
+    }
     // Linkage: for i < depth-1, values[i] == hash(commitments[i+1]); last equals expected_leaf_value
-    for i in 0..p.values.len() { if i < p.values.len()-1 { let exp = field_commitment!(p.commitments[i+1]); if exp != p.values[i] { return false; } } else { if p.values[i] != expected_leaf_value { return false; } } }
+    for i in 0..p.values.len() {
+        if i < p.values.len() - 1 {
+            let exp = field_commitment!(p.commitments[i + 1]);
+            if exp != p.values[i] {
+                return false;
+            }
+        } else {
+            if p.values[i] != expected_leaf_value {
+                return false;
+            }
+        }
+    }
     let verifier_srs = SrsEval::deterministic();
     verify_path_multiproof(&proof.0, &verifier_srs, expected_leaf_value)
 }
 
 /// Verify proof against root commitment bytes (for on-chain use)
 pub fn verify_proof_bytes(
-    root_bytes: &[u8; 64],
+    root_bytes: &[u8; 32],
     proof: &VerkleProof,
     expected_leaf_value: F,
 ) -> bool {
@@ -244,7 +362,7 @@ pub fn verify_proof_bytes(
 
 /// Verify proof for a TreeNode using separate parameters (for on-chain use)
 pub fn verify_tree_node_proof(
-    root_bytes: &[u8; 64],
+    root_bytes: &[u8; 32],
     proof: &VerkleProof,
     claimant: &[u8; 32],
     amount_locked: u64,
@@ -428,11 +546,11 @@ mod tests {
         let tree = VerkleTree::new(&nodes).unwrap();
         let root_bytes = tree.root_bytes();
 
-        // Should be 64 bytes (compressed G1 point)
-        assert_eq!(root_bytes.len(), 64);
+    // Should be 32 bytes (compressed BN254 G1)
+    assert_eq!(root_bytes.len(), 32);
 
         // Should be able to deserialize back
-        let root_reconstructed = G1Affine::deserialize_compressed(&root_bytes[..]).unwrap();
+    let root_reconstructed = G1Affine::deserialize_compressed(&root_bytes[..]).unwrap();
         assert_eq!(root_reconstructed, tree.root_commitment());
     }
 

@@ -1,5 +1,5 @@
-use kzg::{SrsEval, WIDTH};
 use ark_serialize::CanonicalSerialize;
+use kzg::{SrsEval, WIDTH};
 use std::io::{self, Write};
 
 // Binary format spec (little endian unless noted):
@@ -18,13 +18,19 @@ fn main() {
     out.push(1u8); // version
     out.extend_from_slice(&(srs.width as u16).to_le_bytes());
     // G1 lagrange points
-    for p in &srs.g1_lagrange { p.serialize_compressed(&mut out).expect("g1 serialize"); }
+    for p in &srs.g1_lagrange {
+        p.serialize_compressed(&mut out).expect("g1 serialize");
+    }
     // G2 gen & tau
     srs.g2_gen.serialize_compressed(&mut out).expect("g2 gen");
     srs.g2_tau.serialize_compressed(&mut out).expect("g2 tau");
     // omega domain
-    for w in &srs.omega_domain[0..srs.width] { w.serialize_compressed(&mut out).expect("omega serialize"); }
-    srs.inv_width.serialize_compressed(&mut out).expect("inv width");
+    for w in &srs.omega_domain[0..srs.width] {
+        w.serialize_compressed(&mut out).expect("omega serialize");
+    }
+    srs.inv_width
+        .serialize_compressed(&mut out)
+        .expect("inv width");
     let stdout = io::stdout();
     let mut handle = stdout.lock();
     handle.write_all(&out).expect("write srs");

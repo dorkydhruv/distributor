@@ -11,9 +11,13 @@ fn sol_blake3(data_ptr: *const u8, len: u64, out_ptr: *mut u8) {
     use blake3::Hasher;
     let mut h = Hasher::new();
     // Best-effort: treat data_ptr as contiguous concatenation provided by caller (unsafe simplification)
-    unsafe { h.update(core::slice::from_raw_parts(data_ptr, len as usize)); }
+    unsafe {
+        h.update(core::slice::from_raw_parts(data_ptr, len as usize));
+    }
     let digest = h.finalize();
-    unsafe { core::ptr::copy_nonoverlapping(digest.as_bytes().as_ptr(), out_ptr, 32); }
+    unsafe {
+        core::ptr::copy_nonoverlapping(digest.as_bytes().as_ptr(), out_ptr, 32);
+    }
 }
 
 pub fn blake3_hash(data: &[&[u8]]) -> Result<[u8; 32], ProgramError> {

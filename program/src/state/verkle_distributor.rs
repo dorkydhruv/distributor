@@ -4,8 +4,8 @@ use pinocchio::pubkey::Pubkey;
 pub struct VerkleDistributor {
     /// Version of the airdrop
     pub version: [u8; 8],
-    /// The 512-bit verkle root.
-    pub root: [u8; 48],
+    /// Compressed BN254 G1 root commitment (32 bytes)
+    pub root: [u8; 32],
     /// [Mint] of the token to be distributed.
     pub mint: Pubkey,
     /// Token Address of the vault
@@ -28,10 +28,14 @@ pub struct VerkleDistributor {
     pub clawback_receiver: Pubkey,
     /// Admin wallet
     pub admin: Pubkey,
-    /// G1 trusted setup element
-    pub g1_trusted_setup: [u8; 48],
-    /// G2 trusted setup element
-    pub g2_trusted_setup: [u8; 96],
+    /// Lagrange basis G1 points L_i(τ)·G1 (WIDTH=32)
+    pub g1_lagrange: [[u8; 32]; 32],
+    /// G2 generator
+    pub g2_gen: [u8; 64],
+    /// τ·G2
+    pub g2_tau: [u8; 64],
+    /// SRS version (for future upgrades)
+    pub srs_version: u8,
     /// Whether or not the distributor has been clawed back
     pub clawed_back: u8,
     /// Bump seed.
@@ -45,7 +49,7 @@ impl VerkleDistributor {
     pub fn initialize(
         &mut self,
         version: u64,
-        root: [u8; 48],
+        root: [u8; 32],
         mint: Pubkey,
         token_vault: Pubkey,
         max_total_claim: u64,
@@ -58,7 +62,7 @@ impl VerkleDistributor {
         bump: u8,
     ) {
         self.version = version.to_be_bytes();
-        self.root.copy_from_slice(&root);
+    self.root.copy_from_slice(&root);
         self.mint = mint;
         self.token_vault = token_vault;
         self.max_total_claim = max_total_claim.to_be_bytes();
@@ -72,6 +76,11 @@ impl VerkleDistributor {
         self.total_amount_claimed = [0; 8];
         self.num_nodes_claimed = [0; 8];
         self.bump = bump;
+        self.srs_version = 0;
+        // Caller must separately populate SRS fields after initialization.
+        self.g1_lagrange = [[0u8;32];32];
+        self.g2_gen = [0u8;64];
+        self.g2_tau = [0u8;64];
     }
 
     pub unsafe fn unpack(data: &mut [u8]) -> &mut Self {

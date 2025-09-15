@@ -978,7 +978,12 @@ dependencies = [
 name = "distributor"
 version = "0.1.0"
 dependencies = [
+ "ark-bn254 0.5.0",
+ "ark-ec 0.5.0",
+ "ark-ff 0.5.0",
+ "ark-serialize 0.5.0",
  "blake3",
+ "kzg",
  "mollusk-svm",
  "mollusk-svm-bencher",
  "pinocchio",

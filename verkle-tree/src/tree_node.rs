@@ -124,5 +124,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_ui_amount_to_token_amount() { assert_eq!(ui_amount_to_token_amount(5), 5_000_000_000); }
+    fn test_ui_amount_to_token_amount() {
+        assert_eq!(ui_amount_to_token_amount(5), 5_000_000_000);
+    }
 }

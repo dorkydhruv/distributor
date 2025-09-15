@@ -10,9 +10,13 @@ use pinocchio_token::state::TokenAccount;
 
 use crate::{
     error::ErrorCode,
-    state::{claim_status, ClaimStatus, VerkleDistributor},
+    state::{ClaimStatus, VerkleDistributor},
     utils::blake3_hash,
+    srs::{assert_srs_populated, srs_bytes_from_distributor},
+    verify_onchain::{verify_aggregated as verify_path_aggregated, hash_bytes_to_field},
 };
+use kzg::srs_from_storage;
+use ark_bn254::Fr as F;
 
 const LEAF_PREFIX: &[u8] = &[0];
 
@@ -66,66 +70,49 @@ impl<'a> TryFrom<&'a [AccountInfo]> for NewClaimAccounts<'a> {
 
 #[repr(C)]
 pub struct NewClaimInstructionData {
-    pub amount_unlocked: u64, //8
-    pub amount_locked: u64,   //8
-    pub proof: [u8; 32],      //32
-    pub distributor_bump: u8,
-    pub claim_status_bump: u8,
+    pub amount_unlocked: u64, // 0..8
+    pub amount_locked: u64,   // 8..16
+    pub distributor_bump: u8, // 16
+    pub claim_status_bump: u8, //17
+    pub proof_len: u16,       // 18..20 (little-endian)
 }
 
 impl<'a> TryFrom<&'a [u8]> for NewClaimInstructionData {
     type Error = ProgramError;
-
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
-        if value.len() != core::mem::size_of::<Self>() {
-            return Err(ProgramError::InvalidInstructionData);
-        }
-        let amount_unlocked = u64::from_le_bytes(
-            value[0..8]
-                .try_into()
-                .or(Err(ProgramError::InvalidInstructionData))?,
-        );
-        let amount_locked = u64::from_le_bytes(
-            value[8..16]
-                .try_into()
-                .or(Err(ProgramError::InvalidInstructionData))?,
-        );
-        let proof = value[16..48]
-            .try_into()
-            .or(Err(ProgramError::InvalidInstructionData))?;
-        let distributor_bump = value[48];
-        let claim_status_bump = value[49];
-
-        Ok(Self {
-            amount_unlocked,
-            amount_locked,
-            proof,
-            distributor_bump,
-            claim_status_bump,
-        })
+        if value.len() < 20 { return Err(ProgramError::InvalidInstructionData); }
+        let amount_unlocked = u64::from_le_bytes(value[0..8].try_into().unwrap());
+        let amount_locked = u64::from_le_bytes(value[8..16].try_into().unwrap());
+        let distributor_bump = value[16];
+        let claim_status_bump = value[17];
+        let proof_len = u16::from_le_bytes(value[18..20].try_into().unwrap());
+        Ok(Self { amount_unlocked, amount_locked, distributor_bump, claim_status_bump, proof_len })
     }
 }
 
 pub struct NewClaim<'a> {
     pub accounts: NewClaimAccounts<'a>,
     pub instruction_data: NewClaimInstructionData,
+    pub proof_bytes: &'a [u8],
 }
 
 impl<'a> TryFrom<(&'a [AccountInfo], &'a [u8])> for NewClaim<'a> {
     type Error = ProgramError;
-
     fn try_from(value: (&'a [AccountInfo], &'a [u8])) -> Result<Self, Self::Error> {
-        Ok(Self {
-            accounts: value.0.try_into()?,
-            instruction_data: value.1.try_into()?,
-        })
+        let accounts: NewClaimAccounts = value.0.try_into()?;
+        let header: NewClaimInstructionData = value.1.try_into()?;
+        let total_len = 20 + header.proof_len as usize;
+        if value.1.len() != total_len { return Err(ProgramError::InvalidInstructionData); }
+        let proof_slice = &value.1[20..total_len];
+        Ok(Self { accounts, instruction_data: header, proof_bytes: proof_slice })
     }
 }
 
 impl<'a> NewClaim<'a> {
     pub const DISC: &'a u8 = &1;
     pub fn process(&mut self) -> ProgramResult {
-        let curr_ts = Clock::get()?.unix_timestamp;
+        // clock retrieval reserved for future time-based claim logic; removed unused variable to satisfy lints
+        let _ = Clock::get()?; // keep syscall side-effects minimal
 
         let distributor = unsafe {
             VerkleDistributor::unpack(self.accounts.distributor.borrow_mut_data_unchecked())
@@ -144,16 +131,26 @@ impl<'a> NewClaim<'a> {
             return Err(ErrorCode::MaxNodesExceeded.into());
         }
 
+        // Leaf hashing must match tree construction: hash(LEAF_PREFIX, claimant, amount_unlocked, amount_locked)
         let node_hash = blake3_hash(&[
+            LEAF_PREFIX,
             self.accounts.claimant.key(),
-            self.instruction_data.amount_locked.to_le_bytes().as_ref(),
             self.instruction_data.amount_unlocked.to_le_bytes().as_ref(),
+            self.instruction_data.amount_locked.to_le_bytes().as_ref(),
         ])?;
-        let node = blake3_hash(&[LEAF_PREFIX, node_hash.as_ref()])?;
+        let leaf_f: F = hash_bytes_to_field(&node_hash);
 
-        let root = distributor.root;
-
-        // verify(&self.instruction_data.proof, root, node)?; // do the stuff needed for this
+        let root = distributor.root; // [u8;32]
+        // Ensure SRS populated before attempting verification
+        assert_srs_populated(distributor)?;
+        let (g1_lagrange, g2_gen, g2_tau) = srs_bytes_from_distributor(distributor);
+        // Reconstruct SRS (verification-only)
+        let srs = srs_from_storage(g1_lagrange, g2_gen, g2_tau).ok_or(ProgramError::InvalidAccountData)?;
+        // Verify aggregated path multiproof
+        match verify_path_aggregated(&root, self.proof_bytes, leaf_f, &srs) {
+            Ok(()) => {},
+            Err(_e) => return Err(ErrorCode::InvalidProof.into()),
+        }
 
         if self.accounts.claim_status.lamports().ne(&0) {
             return Err(ProgramError::AccountAlreadyInitialized);

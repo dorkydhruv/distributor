@@ -20,6 +20,7 @@ pub enum ErrorCode {
     StartTimestampAfterEnd,
     TimestampsNotInFuture,
     InvalidVersion,
+    UninitializedSrs,
 }
 
 impl From<ErrorCode> for ProgramError {

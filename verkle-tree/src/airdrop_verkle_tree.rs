@@ -25,7 +25,7 @@ fn get_max_total_claim(tree_nodes: &[TreeNode]) -> u64 {
 #[derive(Debug, Clone)]
 pub struct AirdropVerkleTree {
     /// The verkle root (G1 commitment as bytes), which is uploaded on-chain
-    pub verkle_root: [u8; 64],
+    pub verkle_root: [u8; 32],
     pub max_num_nodes: u64,
     pub max_total_claim: u64,
     pub tree_nodes: Vec<TreeNode>,
@@ -41,11 +41,19 @@ impl AirdropVerkleTree {
         out
     }
     pub fn from_bytes(data: &[u8]) -> Option<Self> {
-        if data.len() < 64 + 8 + 8 { return None; }
-        let mut root = [0u8;64]; root.copy_from_slice(&data[0..64]);
-        let max_num_nodes = u64::from_le_bytes(data[64..72].try_into().ok()?);
-        let max_total_claim = u64::from_le_bytes(data[72..80].try_into().ok()?);
-        Some(Self { verkle_root: root, max_num_nodes, max_total_claim, tree_nodes: Vec::new() })
+        if data.len() < 32 + 8 + 8 {
+            return None;
+        }
+        let mut root = [0u8; 32];
+        root.copy_from_slice(&data[0..32]);
+        let max_num_nodes = u64::from_le_bytes(data[32..40].try_into().ok()?);
+        let max_total_claim = u64::from_le_bytes(data[40..48].try_into().ok()?);
+        Some(Self {
+            verkle_root: root,
+            max_num_nodes,
+            max_total_claim,
+            tree_nodes: Vec::new(),
+        })
     }
 }
 
@@ -278,8 +286,8 @@ mod tests {
         // Verify proof is stored in the node
         assert!(node.proof.is_some(), "Proof should be stored in TreeNode");
 
-    let proof = tree.get_proof(&[1; 32]).unwrap();
-    assert!(!proof.0.commitments.is_empty());
+        let proof = tree.get_proof(&[1; 32]).unwrap();
+        assert!(!proof.0.commitments.is_empty());
 
         // Verify the stored proof matches what get_proof returns
         assert_eq!(node.proof.as_ref().unwrap(), &proof);
@@ -311,5 +319,4 @@ mod tests {
             assert_eq!(node.proof.as_ref().unwrap(), &retrieved_proof);
         }
     }
-
 }

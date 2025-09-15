@@ -13,6 +13,11 @@ pinocchio-pubkey = { git = "https://github.com/anza-xyz/pinocchio.git" }
 pinocchio-system = { git = "https://github.com/anza-xyz/pinocchio.git" }
 pinocchio-token = { git = "https://github.com/anza-xyz/pinocchio.git" }
 blake3 = { version = "1", default-features = false, features=["std"] }
+ark-bn254 = { version = "0.5", default-features = false }
+ark-ff = { version = "0.5", default-features = false }
+ark-serialize = { version = "0.5", default-features = false }
+ark-ec = { version = "0.5", default-features = false }
+kzg = { path = "../kzg" }
 
 [dev-dependencies]
 solana-sdk = "2.2.1"
