@@ -10,7 +10,9 @@ use core::fmt::{Debug, Formatter};
 
 pub const WIDTH: usize = 32; // fixed branching factor
 
+#[cfg(feature = "producer")]
 pub mod static_srs;
+#[cfg(feature = "producer")]
 pub use static_srs::static_srs;
 
 pub enum KzgEvalError {
@@ -59,6 +61,7 @@ impl SrsEval {
     }
 
     /// Deterministic SRS (for tests) using hash-derived tau. Not for production ceremonies.
+    #[cfg(feature = "producer")]
     pub fn deterministic() -> Self {
         let width = WIDTH;
         let omega_domain = compute_domain(width);
@@ -95,9 +98,14 @@ impl SrsEval {
 /// Reconstruct an SrsEval from on-chain stored compressed points (g1 lagrange array, g2_gen, g2_tau).
 /// Domain and inv_width are recomputed deterministically.
 pub fn srs_from_storage(g1_lagrange: &[[u8;32]; WIDTH], g2_gen_bytes: &[u8;64], g2_tau_bytes: &[u8;64]) -> Option<SrsEval> {
+    #[allow(clippy::needless_update)]
     use ark_serialize::CanonicalDeserialize;
+    // Avoid large local arrays by filling directly
     let mut g1_points = [G1Affine::zero(); WIDTH];
-    for i in 0..WIDTH { let p = G1Affine::deserialize_compressed(&mut &g1_lagrange[i][..]).ok()?; g1_points[i]=p; }
+    for i in 0..WIDTH {
+        let p = G1Affine::deserialize_compressed(&mut &g1_lagrange[i][..]).ok()?;
+        g1_points[i] = p;
+    }
     let g2_gen = G2Affine::deserialize_compressed(&mut &g2_gen_bytes[..]).ok()?;
     let g2_tau = G2Affine::deserialize_compressed(&mut &g2_tau_bytes[..]).ok()?;
     let omega_domain = compute_domain(WIDTH);
@@ -106,9 +114,11 @@ pub fn srs_from_storage(g1_lagrange: &[[u8;32]; WIDTH], g2_gen_bytes: &[u8;64], 
 }
 
 /// Evaluation-form polynomial (fixed width)
+#[cfg(feature = "producer")]
 pub struct EvalPoly {
     pub evals: [F; WIDTH],
 }
+#[cfg(feature = "producer")]
 impl EvalPoly {
     pub fn zero() -> Self {
         Self {
@@ -141,6 +151,7 @@ fn compute_domain(width: usize) -> [F; WIDTH] {
 }
 
 /// Compute L_i(τ) by direct product formula.
+#[cfg(feature = "producer")]
 fn lagrange_at(i: usize, tau: F, domain: &[F; WIDTH]) -> F {
     let xi = domain[i];
     let mut num = F::one();
@@ -155,6 +166,7 @@ fn lagrange_at(i: usize, tau: F, domain: &[F; WIDTH]) -> F {
 }
 
 /// Commit: Σ f_i * G1_Li with G1_Li = L_i(τ)G1
+#[cfg(feature = "producer")]
 pub fn commit_eval(poly: &EvalPoly, srs: &SrsEval) -> G1Affine {
     let mut acc = G1Projective::zero();
     for i in 0..srs.width {
@@ -167,6 +179,7 @@ pub fn commit_eval(poly: &EvalPoly, srs: &SrsEval) -> G1Affine {
 }
 
 /// Inner quotient evaluations: q(ω^i) = (f(ω^i)-f(ω^k)) * ω^{-i} /(ω^k - ω^i)  with correction for i=k.
+#[cfg(feature = "producer")]
 pub fn inner_quotient(
     poly: &EvalPoly,
     k: usize,
@@ -204,6 +217,7 @@ pub fn inner_quotient(
 }
 
 /// Evaluate polynomial at t outside domain via barycentric formula.
+#[cfg(feature = "producer")]
 pub fn evaluate_outside(poly: &EvalPoly, t: F, srs: &SrsEval) -> Result<F, KzgEvalError> {
     for &x in srs.omega_domain.iter().take(srs.width) {
         if x == t {
@@ -222,6 +236,7 @@ pub fn evaluate_outside(poly: &EvalPoly, t: F, srs: &SrsEval) -> Result<F, KzgEv
 }
 
 /// Outer quotient: q(ω^i) = (f(ω^i)-y)/(ω^i - t)
+#[cfg(feature = "producer")]
 pub fn outer_quotient(
     poly: &EvalPoly,
     t: F,
@@ -239,6 +254,7 @@ pub fn outer_quotient(
 }
 
 /// KZG pairing check for commitment C, evaluation y at z, proof π (commitment to quotient) with public g2_tau: e(C - yG1, g2_gen) == e(π, g2_tau - z g2_gen)
+#[inline(never)]
 fn pairing_check(c: &G1Affine, y: F, z: F, pi: &G1Affine, srs: &SrsEval) -> bool {
     let gen_g1 = G1Affine::generator().into_group();
     let lhs_g1 = (G1Projective::from(*c) + (gen_g1 * (-y))).into_affine();
@@ -274,6 +290,8 @@ fn hash_g1(acc: &mut Hasher, p: &G1Affine) {
 use ark_serialize::CanonicalSerialize;
 
 /// Build multiproof for a single path
+#[cfg(feature = "producer")]
+#[inline(never)]
 pub fn build_path_multiproof(
     polys: &[EvalPoly],
     path_indices: &[usize],
@@ -358,6 +376,7 @@ pub fn build_path_multiproof(
     })
 }
 
+#[inline(never)]
 pub fn verify_path_multiproof(proof: &PathMultiproof, srs: &SrsEval, expected_leaf: F) -> bool {
     if proof.commitments.is_empty() {
         return false;
@@ -405,6 +424,7 @@ pub fn verify_path_multiproof(proof: &PathMultiproof, srs: &SrsEval, expected_le
 
 // ---------------- Simple per-level opening helpers (used during transitional integration) ----------------
 /// Open evaluation-form polynomial at domain index k.
+#[cfg(feature = "producer")]
 pub fn open_domain(
     poly: &EvalPoly,
     width: usize,
@@ -422,6 +442,7 @@ pub fn open_domain(
 }
 
 /// Verify opening at domain index k.
+#[cfg(feature = "producer")]
 pub fn verify_domain_open(
     commitment: &G1Affine,
     value: F,

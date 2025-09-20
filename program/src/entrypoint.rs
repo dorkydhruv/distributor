@@ -1,5 +1,5 @@
 use pinocchio::{
-    account_info::AccountInfo, no_allocator, nostd_panic_handler, program_entrypoint,
+    account_info::AccountInfo, program_entrypoint,
     program_error::ProgramError, pubkey::Pubkey, ProgramResult,
 };
 
@@ -7,10 +7,8 @@ use crate::instruction::{NewClaim, NewDistributor};
 
 // This is the entrypoint for the program.
 program_entrypoint!(process_instruction);
-//Do not allocate memory.
-no_allocator!();
-// Use the no_std panic handler.
-nostd_panic_handler!();
+// Allow allocator usage for cryptographic verification (Vec on heap).
+// Use default panic behavior provided by runtime; avoid duplicate panic_impl.
 
 #[inline(always)]
 fn process_instruction(

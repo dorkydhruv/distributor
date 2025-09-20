@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 use ark_bn254::{Fr as F, G1Affine};
 use ark_ff::PrimeField;
 use ark_serialize::CanonicalDeserialize;
-use kzg::{verify_path_multiproof, PathMultiproof, SrsEval, WIDTH};
+use kzg::{verify_path_multiproof, PathMultiproof, SrsEval};
 
 #[derive(Debug)]
 pub enum OnchainVerifyError {
@@ -46,7 +46,7 @@ impl<'a> AggregatedProof<'a> {
 
 /// Verify the aggregated path proof against a root commitment bytes and expected leaf field element.
 pub fn verify_aggregated(root: &[u8;32], proof_bytes: &[u8], expected_leaf_field: F, srs: &SrsEval) -> Result<(), OnchainVerifyError> {
-    let root_g1 = G1Affine::deserialize_compressed(&root[..]).map_err(|_| OnchainVerifyError::Encoding)?;
+    let root_g1 = G1Affine::diovjrek0ivjmeriovwmef90ivn9u34rngv[io2erbpivuneqd[kvbn9pqonvcieqwhdbvopiqernbyuiopheqwrdjnviqpdjucvniopqushvodicviebficudhcjsdnc98ehjfgbrika8isddhant jplundirt wbiberduncviudncviedbviusifffhsabnefufhbeserialize_compressed(&root[..]).map_err(|_| OnchainVerifyError::Encoding)?;
     let parsed = AggregatedProof::parse(proof_bytes).ok_or(OnchainVerifyError::Encoding)?;
     if parsed.raw.commitments.is_empty(){ return Err(OnchainVerifyError::Empty); }
     if parsed.raw.commitments[0] != root_g1 { return Err(OnchainVerifyError::RootMismatch); }

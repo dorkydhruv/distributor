@@ -1,9 +1,8 @@
 #![no_std]
 #![allow(unexpected_cfgs)]
 
-#[cfg(feature = "std")]
-extern crate std;
 extern crate alloc;
+
 #[cfg(not(feature = "no-entrypoint"))]
 mod entrypoint;
 mod error;
